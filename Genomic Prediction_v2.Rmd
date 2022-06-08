@@ -1,0 +1,420 @@
+---
+title: "Final Project Statistics in Analytics"
+output: html_notebook
+---
+
+## Genomic Prediction
+### EAFIT University
+### Master's student in Biosciences: Felipe López-Hernández
+#### 2022-I
+
+&nbsp;
+
+<center>
+![](D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Captura.png "CC"){width="800" height="100"}</center>    
+
+&nbsp;
+
+#### Uploading R libraries
+
+```{r}
+library(BGLR)
+library(ggplot2)
+library(readr)
+library(rcompanion)
+library(readxl)
+library(kableExtra)
+```
+
+&nbsp;
+
+#### Analysis Path
+
+```{r}
+setwd("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto")
+```
+
+
+&nbsp;
+
+#### Uploading the Allelic Variant File
+
+```{r}
+X <- read.delim("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Genotipicas/GAPIT.Genotype.Numerical.txt", row.names=1)
+```
+
+```{r}
+
+X[1:10,1:10] %>%
+  kbl(caption = "Allelic Variant ") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+&nbsp;
+
+#### Uploading the Phenotypic Data
+
+```{r include=FALSE}
+Y <- as.data.frame(read_excel("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Fenotipicas/YLP.xlsx", 
+                              sheet = "YLP"))
+colnames(Y) <- c("taxa","Env1","Env2","Env3")
+Y$Env1 <- transformTukey(Y$Env1)
+Y$Env2 <- transformTukey(Y$Env2)
+Y$Env3 <- transformTukey(Y$Env3)
+Y <- na.omit(Y[,-c(1,5)])
+```
+
+```{r}
+
+Y %>%
+  kbl(caption = "Phenotypic Data ") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+&nbsp;
+
+#### Uploading the Genomic Relationship matrix
+
+```{r include=FALSE} 
+G <- read_csv("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Genotipicas/GAPIT.Kin.VanRaden.csv", 
+              col_names = FALSE)
+G <- as.matrix(G[,-1])
+```
+
+```{r}
+G[1:5,1:5] %>%
+  kbl(caption = "Genomic Relationship matrix") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+&nbsp;
+
+## Selecting the Environment
+
+```{r}
+Environment <- 1 # 1, 2 or 3
+y<-Y[,Environment]
+```
+
+&nbsp;
+
+## RKHS (Reproducing Kernel Hilbert Space)
+
+&nbsp;
+
+#### Randomization Heritability using RKHS
+
+```{r}
+set.seed(12345)
+#Case I Randomization
+for(i in 1:10){
+  Ys<-sample(y,replace=FALSE)
+  #ETA=list(list(X=X,model="BRR"))
+  # Z=scale(X,center=TRUE,scale=TRUE)
+  # G=tcrossprod(Z)/ncol(Z)
+  ETA=list(list(K=G,model="RKHS"))
+  fmR<-BGLR(y=Ys,ETA=ETA,nIter=10000,burnIn=5000,thin=10)
+  varU=scan("ETA_1_varU.dat")
+  varE=scan("varE.dat")
+  h2<-varU/(varU+varE)
+  if(i==1){hs<-mean(h2,na.rm=T)}
+  if(i!=1){hs<-cbind(hs,mean(h2,na.rm=T))}
+}
+randomh <- hs
+```
+
+
+&nbsp;
+
+#### Statistics Heritability using RKHS
+
+```{r}
+# Mean
+mean(randomh)
+# Standard Desviation
+sd(randomh)
+# Quantile
+quantile(randomh,c(0.025,0.975))
+```
+
+&nbsp;
+
+#### Cross-validation using RKHS
+
+```{r}
+set.seed(12345)
+sets <- sample(c(1,2,3,4,5), size = 77, replace = TRUE)
+#Case III - Cross-validation 
+for(i in 1:5){
+  yNa=y
+  whichNa=(sets==i)
+  yNa[whichNa]=NA
+  
+  #ETA=list(list(X=X,model="BRR"))
+  # Z=scale(X,center=TRUE,scale=TRUE)
+  # G=tcrossprod(Z)/ncol(Z)
+  ETA=list(list(K=G,model="RKHS"))
+  fmR<-BGLR(y=yNa,ETA=ETA,nIter=10000,burnIn=5000,thin=10)
+  varU=scan("ETA_1_varU.dat")
+  varE=scan("varE.dat")
+  
+  COR.tst<-cor(fmR$yHat[whichNa],y[whichNa])
+  if(i==1){CORs<-COR.tst}
+  if(i!=1){CORs<-cbind(CORs,COR.tst)}
+  
+  h2<-varU/(varU+varE)
+  if(i==1){hs<-mean(h2,na.rm=T)}
+  if(i!=1){hs<-cbind(hs,mean(h2,na.rm=T))}
+  
+  MSE.trn<-mean((fmR$yHat[-whichNa]-y[-whichNa])^2)
+  if(i==1){MSE.trn_s<-mean(MSE.trn,na.rm=T)}
+  if(i!=1){MSE.trn_s<-cbind(MSE.trn_s,mean(MSE.trn,na.rm=T))}
+  
+  MSE.tst<-mean((fmR$yHat[whichNa]-y[whichNa])^2)
+  if(i==1){MSE.tst_s<-mean(MSE.tst,na.rm=T)}
+  if(i!=1){MSE.tst_s<-cbind(MSE.tst_s,mean(MSE.tst,na.rm=T))}
+  
+  GEBVs <- fmR$yHat-fmR$mu
+  if(i==1){GEBVst_s<-GEBVs}
+  if(i!=1){GEBVst_s<-cbind(GEBVst_s,GEBVs)}
+  
+}
+cvh <- hs
+```
+
+
+&nbsp;
+
+#### Statistics Heritability using RKHS (Cross Validation)
+
+```{r}
+# Mean
+mean(cvh)
+# Standard Desviation
+sd(cvh)
+# Quantile
+quantile(cvh,c(0.025,0.975))
+```
+
+&nbsp;
+
+#### Statistics Modeling using RKHS (Cross Validation)
+
+```{r}
+#Correlation
+mean(CORs)
+CORs <- as.data.frame(CORs)
+names(CORs) <- c("COR Fold 1","COR Fold 2","COR Fold 3","COR Fold 4","COR Fold 5")
+CORs %>%
+  kbl(caption = "Correlation of Validation set Across the Foldsx") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+# Mean Square Error testing
+mean(MSE.tst_s)
+MSE.tst_s <- as.data.frame(MSE.tst_s)
+names(MSE.tst_s) <- c("MSE.tst Fold 1","MSE.tst Fold 2","MSE.tst Fold 3","MSE.tst Fold 4","MSE.tst Fold 5")
+MSE.tst_s %>%
+  kbl(caption = "Mean Square Error of Validation Set Across the Foldsx") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+&nbsp;
+
+#### Plotting Heritability
+
+
+```{r}
+# Defining Dataset
+datai2 <- as.data.frame(t(cvh))
+colnames(datai2) <- c("V1")
+datai2$tag <- c("cv")
+# Plotting
+ggplot(datai2, aes(x=V1, fill=tag)) +
+  # geom_histogram(alpha=.2) +
+  geom_density(alpha=.7) +
+  scale_fill_manual(values=c("royalblue1","gold")) +
+  # scale_fill_brewer(palette="Dark2") + 
+  xlim(0, 1) +
+  geom_vline(aes(xintercept=mean(randomh)), colour="grey38",linetype="dashed", size=1)+
+  geom_vline(aes(xintercept=mean(cvh)), colour="grey38",linetype="dashed", size=1) + 
+  theme(legend.position = "none")+labs(title ="Modelo RKHS ", y= "Densidad", x = "Heredabilidad")
+```
+
+&nbsp;
+
+#### Breedig Values
+
+```{r}
+GEBVst_s <- as.data.frame(GEBVst_s)
+colnames(GEBVst_s) <- c("GEBV Fold 1","GEBV Fold 2","GEBV Fold 3","GEBV Fold 4","GEBV Fold 5")
+# rownames(GEBVst_s) <- rownames(X)
+# Select Fold
+fold <- 1 # 2,3,4 or 5
+selectedFold <- as.data.frame(GEBVst_s[,fold])
+rownames(selectedFold) <- rownames(X)
+selectedFold$Plant <- rownames(X)
+colnames(selectedFold) <- c("Breedig Value","plant")
+Bv <- selectedFold[order(-selectedFold$`Breedig Value`),] 
+Bv %>%
+  kbl(caption = "") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+
+&nbsp;
+
+## BRR (Bayesian Ridge Regression) 
+
+&nbsp;
+
+#### Cross-validation using BRR
+
+```{r }
+set.seed(12345)
+sets <- sample(c(1,2,3,4,5), size = 77, replace = TRUE)
+#Case III - Cross-validation 
+for(i in 1:5){
+  yNa=y
+  whichNa=(sets==i)
+  yNa[whichNa]=NA
+  
+  ETA=list(list(X=X,model="BRR"))
+  # Z=scale(X,center=TRUE,scale=TRUE)
+  # G=tcrossprod(Z)/ncol(Z)
+  # ETA=list(list(K=G,model="RKHS"))
+  fmR<-BGLR(y=yNa,ETA=ETA,nIter=10000,burnIn=5000,thin=10)
+  varU=scan("ETA_1_varU.dat")
+  varE=scan("varE.dat")
+  
+  COR.tst<-cor(fmR$yHat[whichNa],y[whichNa])
+  if(i==1){CORs<-COR.tst}
+  if(i!=1){CORs<-cbind(CORs,COR.tst)}
+  
+  h2<-varU/(varU+varE)
+  if(i==1){hs<-mean(h2,na.rm=T)}
+  if(i!=1){hs<-cbind(hs,mean(h2,na.rm=T))}
+  
+  MSE.trn<-mean((fmR$yHat[-whichNa]-y[-whichNa])^2)
+  if(i==1){MSE.trn_s<-mean(MSE.trn,na.rm=T)}
+  if(i!=1){MSE.trn_s<-cbind(MSE.trn_s,mean(MSE.trn,na.rm=T))}
+  
+  MSE.tst<-mean((fmR$yHat[whichNa]-y[whichNa])^2)
+  if(i==1){MSE.tst_s<-mean(MSE.tst,na.rm=T)}
+  if(i!=1){MSE.tst_s<-cbind(MSE.tst_s,mean(MSE.tst,na.rm=T))}
+  
+}
+cvh <- hs
+```
+
+&nbsp;
+
+#### Statistics Modeling using BRR (Cross Validation)
+
+```{r}
+#Correlation
+mean(CORs)
+CORs <- as.data.frame(CORs)
+names(CORs) <- c("COR Fold 1","COR Fold 2","COR Fold 3","COR Fold 4","COR Fold 5")
+CORs %>%
+  kbl(caption = "Correlation of Validation set Across the Foldsx") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+# Mean Square Error testing
+mean(MSE.tst_s)
+MSE.tst_s <- as.data.frame(MSE.tst_s)
+names(MSE.tst_s) <- c("MSE.tst Fold 1","MSE.tst Fold 2","MSE.tst Fold 3","MSE.tst Fold 4","MSE.tst Fold 5")
+MSE.tst_s %>%
+  kbl(caption = "Mean Square Error of Validation Set Across the Foldsx") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+&nbsp;
+
+#### Marker effects - Betas 
+
+&nbsp;
+
+#### Selecting the best Moldel using the fold with best MSE and COR
+
+```{r}
+yNa=y
+whichNa=(sets==3) # 1,2,3,4 or 5
+```
+
+&nbsp;
+
+####
+
+```{r include=FALSE}
+yNa[whichNa]=NA
+
+ETA=list(list(X=X,model="BRR"))
+fmR<-BGLR(y=yNa,ETA=ETA,nIter=10000,burnIn=5000,thin=10)
+varU=scan("ETA_1_varU.dat")
+varE=scan("varE.dat")
+```
+
+&nbsp;
+
+#### Mean Square Error testing using BRR
+
+```{r}
+# Testing
+MSE.tst<-mean((fmR$yHat[whichNa]-y[whichNa])^2)
+MSE.tst
+# Training
+MSE.trn<-mean((fmR$yHat[-whichNa]-y[-whichNa])^2)
+MSE.trn
+```
+
+&nbsp;
+
+#### Correlation using BRR
+
+```{r}
+# Testing
+COR.tst<-cor(fmR$yHat[whichNa],y[whichNa]) #at least 0.3!
+COR.tst
+# Training
+COR.trn<-cor(fmR$yHat[-whichNa],y[-whichNa])
+COR.trn
+```
+
+&nbsp;
+
+#### Plotting Correlation using BRR
+
+```{r}
+#R
+par(mfrow=c(1,1))
+plot(y,fmR$yHat,xlab="Phenotype",ylab="Pred. Gen. Value" ,cex=1,bty="L",pch=1)
+points(x=y[whichNa],y=fmR$yHat[whichNa],col="royalblue1",cex=1,pch=19)
+legend("topleft", legend=c("training","testing"),bty="n",pch=c(1,19),col=c("black","royalblue1"))
+```
+
+&nbsp;
+
+#### Marker effects using BRR
+
+```{r}
+#M - Betas - Only for BRR
+beta_hat<-fmR$ETA[[1]]$b
+plot(beta_hat,col="royalblue1",cex=.7,pch=1)
+```
+
+#### Top 50 Marker effects using BRR
+
+```{r}
+#M - Betas - Only for BRR
+Betas <- as.data.frame(head(sort(beta_hat,decreasing=T),n=50))
+colnames(Betas) <- "beta"
+Betas <- cbind(rownames(Betas),Betas$beta)
+colnames(Betas) <- c("Molecuar Variant","beta")
+
+Betas %>%
+  kbl(caption = "Top 50 Marker effects using BRR") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
