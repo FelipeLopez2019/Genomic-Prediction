@@ -1,0 +1,213 @@
+---
+title: "Final Project Statistics in Analytics"
+output: html_notebook
+---
+
+## Genomic Prediction - Descriptive
+### EAFIT University
+### Master's student in Biosciences: Felipe López-Hernández
+#### 2022-I
+
+&nbsp;
+
+<center>
+![](D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Captura.png "CC"){width="800" height="100"}</center>    
+
+&nbsp;
+
+#### Uploading R libraries
+
+```{r}
+library(BGLR)
+library(ggplot2)
+library(readr)
+library(rcompanion)
+library(readxl)
+library(kableExtra)
+library("ggpubr")
+library(rcompanion)
+library(ggcorrplot)
+library(GAPIT3)
+```
+
+&nbsp;
+
+#### Analysis Path
+
+```{r}
+setwd("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto")
+```
+
+
+&nbsp;
+
+#### Uploading the Allelic Variant File
+
+```{r}
+X <- read.delim("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Genotipicas/GAPIT.Genotype.Numerical.txt", row.names=1)
+```
+
+```{r}
+
+X[1:10,1:10] %>%
+  kbl(caption = "Allelic Variant ") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+&nbsp;
+
+#### Uploading the Phenotypic Data
+
+```{r include=FALSE}
+Y <- as.data.frame(read_excel("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Fenotipicas/YLP.xlsx", 
+                              sheet = "YLP"))
+colnames(Y) <- c("taxa","Env1","Env2","Env3")
+Y$Env1 <- transformTukey(Y$Env1)
+Y$Env2 <- transformTukey(Y$Env2)
+Y$Env3 <- transformTukey(Y$Env3)
+Y <- na.omit(Y[,-c(1,5)])
+```
+
+```{r}
+
+Y %>%
+  kbl(caption = "Phenotypic Data ") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+&nbsp;
+
+###  Environment 1 
+
+```{r}
+# Density plot
+a <- ggdensity(Y$Env1, fill = "royalblue1")
+# QQ plot
+b <- ggqqplot(Y$Env1)
+# Shapiro
+shapiro.test(Y$Env1)
+# nortest functions
+library(nortest)
+# Anderson-Darling normality test
+nortest::ad.test(Y$Env1)
+# Cramer-von Mises normality test
+nortest::cvm.test(Y$Env1)
+# Lilliefors (Kolmogorov-Smirnov) normality test
+nortest::lillie.test(Y$Env1)
+# Pearson chi-square normality test
+nortest::pearson.test(Y$Env1)
+```
+
+
+&nbsp;
+
+###  Environment 2 
+
+```{r}
+# Density plot
+c <- ggdensity(Y$Env2, fill = "royalblue1")
+# QQ plot
+d <- ggqqplot(Y$Env2)
+# Shapiro
+shapiro.test(Y$Env2)
+# nortest functions
+library(nortest)
+# Anderson-Darling normality test
+nortest::ad.test(Y$Env2)
+# Cramer-von Mises normality test
+nortest::cvm.test(Y$Env2)
+# Lilliefors (Kolmogorov-Smirnov) normality test
+nortest::lillie.test(Y$Env2)
+# Pearson chi-square normality test
+nortest::pearson.test(Y$Env2)
+```
+
+
+&nbsp;
+
+###  Environment 3
+
+```{r}
+# Density plot
+e <- ggdensity(Y$Env3, fill = "royalblue1")
+# QQ plot
+f <- ggqqplot(Y$Env3)
+# Shapiro
+shapiro.test(Y$Env3)
+# nortest functions
+library(nortest)
+# Anderson-Darling normality test
+nortest::ad.test(Y$Env3)
+# Cramer-von Mises normality test
+nortest::cvm.test(Y$Env3)
+# Lilliefors (Kolmogorov-Smirnov) normality test
+nortest::lillie.test(Y$Env3)
+# Pearson chi-square normality test
+nortest::pearson.test(Y$Env3)
+```
+
+&nbsp;
+
+###  Plotting
+
+```{r}
+cowplot::plot_grid(a,b,c,d,e,f, labels=c("A","B","C","D","E","F"),ncol = 2)
+```
+
+&nbsp;
+
+###  Correlationn
+
+```{r}
+
+
+datacor <- cor(Y, method = "pearson")
+A <- ggcorrplot(datacor, insig = "pch", hc.order = F, type = "lower",
+                lab = TRUE,outline.col = "white",
+                ggtheme = ggplot2::theme_gray,
+                colors = c("#6D9EC1", "white", "#E46726"), title="A",
+                legend.title="")+ 
+  labs(title="A",
+       subtitle="Pearson Correlation")+
+  theme(plot.subtitle=element_text(size=10, hjust=0.5, face="italic", color="black"))+ 
+  theme(plot.title = element_text(size = 15, face = "bold")) 
+
+datacor <- cor(Y, method = "kendall")
+B <- ggcorrplot(datacor, insig = "blank", hc.order = F, type = "lower",
+                lab = TRUE,outline.col = "white",
+                ggtheme = ggplot2::theme_gray,
+                colors = c("#6D9EC1", "white", "#E46726"), title="B",
+                legend.title="")+ 
+  labs(title="B",
+       subtitle="Kendall Correlation")+
+  theme(plot.subtitle=element_text(size=10, hjust=0.5, face="italic", color="black"))+ 
+  theme(plot.title = element_text(size = 15, face = "bold")) 
+
+datacor <- cor(Y, method = "spearman")
+C <- ggcorrplot(datacor, insig = "blank", hc.order = F, type = "lower",
+                lab = TRUE,outline.col = "white",
+                ggtheme = ggplot2::theme_gray,
+                colors = c("#6D9EC1", "white", "#E46726"), title="C",
+                legend.title="") + 
+  labs(title="C",
+       subtitle="Spearman Correlation")+
+  theme(plot.subtitle=element_text(size=10, hjust=0.5, face="italic", color="black"))+ 
+  theme(plot.title = element_text(size = 15, face = "bold")) 
+
+library(ggpubr)
+ggarrange(A, B, C, ncol = 3)
+```
+
+&nbsp;
+
+###  Kinship
+
+```{r}
+setwd("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Genotipicas/")
+myG <- as.data.frame(read_delim("D:/EAFIT/Semestre III/Estadistica en Analitica/proyecto/Variables Genotipicas/X.hmp.txt",
+                                delim = "\t", escape_double = FALSE,
+                                col_names = FALSE, trim_ws = TRUE))
+myGAPIT <- GAPIT(G=myG, output.numerical=TRUE,
+                 Geno.View.output=FALSE)
+```
+
